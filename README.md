@@ -2,6 +2,14 @@
 
 Beep backend records and makes available the last seen times of users.
 
+## Flags
+
+Flags are supplied to the compiled go program in the form ```-flag=stuff```.
+
+| Flag | Description | Default |
+| ---- | ----------- | ------- |
+| listen | Port number to listen on | 8080 |
+
 ## API
 
 ### Subscribe User
