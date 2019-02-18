@@ -2,14 +2,14 @@
 
 Beep backend records and makes available the last seen times of users.
 
-## Flags
+## Environment variables
 
-Flags are supplied to the compiled go program in the form ```-flag=stuff```.
+Supply environment variables by either exporting them or editing ```.env```.
 
-| Flag | Description | Default |
+| ENV | Description | Default |
 | ---- | ----------- | ------- |
-| listen | Port number to listen on | 8080 |
-| redis | Host and port of redis | :6379 |
+| LISTEN | Host and port number to listen on | :8080 |
+| REDIS | Host and port of redis | :6379 |
 
 ## API
 

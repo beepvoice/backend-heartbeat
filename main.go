@@ -1,13 +1,14 @@
 package main
 
 import (
-  "flag"
   "fmt"
   "log"
   "net/http"
+  "os"
   "strconv"
   "time"
 
+  "github.com/joho/godotenv"
   "github.com/julienschmidt/httprouter"
   "github.com/go-redis/redis"
 )
@@ -24,10 +25,13 @@ var connections map[RawClient][]chan []byte
 var redisClient *redis.Client
 
 func main() {
-  // Parse flags
-  flag.StringVar(&listen, "listen", ":8080", "host and port to listen on")
-  flag.StringVar(&redisHost, "redis", ":6379", "host and port of redis")
-  flag.Parse()
+  // Load .env
+  err := godotenv.Load()
+  if err != nil {
+    log.Fatal("Error loading .env file")
+  }
+  listen = os.Getenv("LISTEN")
+  redisHost = os.Getenv("REDIS")
 
   connections = make(map[RawClient][]chan []byte)
 
