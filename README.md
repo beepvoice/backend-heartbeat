@@ -2,6 +2,8 @@
 
 Beep backend records and makes available the last seen times of users.
 
+**To run this service securely means to run it behind traefik forwarding auth to `backend-auth`**
+
 ## Environment variables
 
 Supply environment variables by either exporting them or editing ```.env```.
@@ -45,18 +47,23 @@ An [EventSource](https://developer.mozilla.org/en-US/docs/Web/API/EventSource) s
 ### Ping Server
 
 ```
-POST /ping/:userid/client/:clientid
+POST /ping
 ```
 
 Ping the server.
 
-#### URL Params
+#### Required headers
 
-| Name | Type | Description | Required |
-| ---- | ---- | ----------- | -------- |
-| userid | String | User's ID. | ✓ |
-| clientid | String | User's device's ID. | ✓ |
+| Name | Description |
+| ---- | ----------- |
+| X-User-Claim | Stringified user claim, populated by `backend-auth` called by `traefik` |
 
 #### Success Response (200 OK)
 
 Empty body.
+
+#### Errors
+
+| Code | Description |
+| ---- | ----------- |
+| 400 | Invalid user claims header. |

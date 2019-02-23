@@ -1,6 +1,7 @@
 package main
 
 import (
+  "encoding/json"
   "fmt"
   "log"
   "net/http"
@@ -17,8 +18,8 @@ var listen string
 var redisHost string
 
 type RawClient struct {
-  UserId string
-  ClientId string
+  UserId string `json:"userid"`
+  ClientId string `json:"clientid"`
 }
 
 var connections map[RawClient][]chan []byte
@@ -45,7 +46,7 @@ func main() {
   // Routes
 	router := httprouter.New()
   router.GET("/subscribe/:userid/client/:clientid", Subscribe)
-  router.POST("/ping/:userid/client/:clientid", PostTime)
+  router.POST("/ping", PostTime)
 
   // Start server
   log.Printf("starting server on %s", listen)
@@ -96,11 +97,19 @@ func Subscribe(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
   }
 }
 
-// TODO: Take client data from token
 func PostTime(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-  client := RawClient {
-    UserId: p.ByName("userid"),
-    ClientId: p.ByName("clientid"),
+  ua := r.Header.Get("X-User-Claim")
+  if ua == "" {
+    http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+  }
+
+  var client RawClient
+  err := json.Unmarshal([]byte(ua), &client)
+
+  if err != nil {
+    http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
   }
 
   time := []byte(strconv.FormatInt(time.Now().UTC().Unix(), 10)) // UTC Epoch Time in []byte
