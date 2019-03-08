@@ -22,6 +22,11 @@ type RawClient struct {
   ClientId string `json:"clientid"`
 }
 
+type Ping struct {
+  Time string `json:"time"`
+  Status string `json:"status"`
+}
+
 var connections map[RawClient][]chan []byte
 var redisClient *redis.Client
 
@@ -76,10 +81,18 @@ func Subscribe(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
   ticker := time.NewTicker(25 * time.Second)
 
   // Push cached value (if it exists) to the connection
-  cachedTime, err := redisClient.Get(client.UserId + client.ClientId).Result()
-  if err == nil {
-    fmt.Fprintf(w, "data: %s\n\n", cachedTime)
-    flusher.Flush()
+  cachedTime, err1 := redisClient.HGet(client.UserId + client.ClientId, "time").Result()
+  cachedStatus, err2 := redisClient.HGet(client.UserId + client.ClientId, "status").Result()
+  if err1 == nil && err2 == nil {
+    ping := Ping {
+      Time: cachedTime,
+      Status: cachedStatus,
+    }
+    pingBytes, err := json.Marshal(&ping)
+    if err == nil {
+      fmt.Fprintf(w, "data: %s\n\n", pingBytes)
+      flusher.Flush()
+    }
   }
 
   for {
@@ -97,6 +110,9 @@ func Subscribe(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
   }
 }
 
+type PostTimeRequest struct {
+  Status string `json:"status"`
+}
 func PostTime(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
   ua := r.Header.Get("X-User-Claim")
   if ua == "" {
@@ -112,12 +128,31 @@ func PostTime(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		return
   }
 
-  time := []byte(strconv.FormatInt(time.Now().UTC().Unix(), 10)) // UTC Epoch Time in []byte
+  decoder := json.NewDecoder(r.Body)
+  var ptRequest PostTimeRequest
+  err = decoder.Decode(&ptRequest)
+  if err != nil {
+    http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+  }
+
+  ping := Ping {
+    Time: strconv.FormatInt(time.Now().UTC().Unix(), 10), // UTC Epoch time,
+    Status: ptRequest.Status,
+  }
+
   key := client.UserId + client.ClientId
-  _ = redisClient.Set(key, time, 0)
+  _ = redisClient.HSet(key, "time", []byte(ping.Time))
+  _ = redisClient.HSet(key, "status", []byte(ping.Status))
+
+  pingBytes, err := json.Marshal(&ping)
+  if err != nil {
+    http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+  }
 
   for _, connection := range connections[client] {
-    connection <- time
+    connection <- pingBytes
   }
 
   w.WriteHeader(http.StatusOK)
