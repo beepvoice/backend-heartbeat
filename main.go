@@ -27,7 +27,7 @@ type Ping struct {
   Status string `json:"status"`
 }
 
-var connections map[RawClient][]chan []byte
+var connections map[string][]chan []byte
 var redisClient *redis.Client
 
 func main() {
@@ -39,7 +39,7 @@ func main() {
   listen = os.Getenv("LISTEN")
   redisHost = os.Getenv("REDIS")
 
-  connections = make(map[RawClient][]chan []byte)
+  connections = make(map[string][]chan []byte)
 
   // Redis
   redisClient = redis.NewClient(&redis.Options{
@@ -50,7 +50,7 @@ func main() {
 
   // Routes
 	router := httprouter.New()
-  router.GET("/subscribe/:userid/client/:clientid", Subscribe)
+  router.GET("/subscribe/:userid", Subscribe)
   router.POST("/ping", PostTime)
 
   // Start server
@@ -69,20 +69,18 @@ func Subscribe(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
   w.Header().Set("Cache-Control", "no-cache")
   w.Header().Set("Connection", "keep-alive")
 
-  client := RawClient {
-    UserId: p.ByName("userid"),
-    ClientId: p.ByName("clintid"),
-  }
+  userId := p.ByName("userid")
+
   recv := make(chan []byte)
-  connections[client] = append(connections[client], recv);
+  connections[userId] = append(connections[userId], recv);
 
   // Refresh connection periodically
   resClosed := w.(http.CloseNotifier).CloseNotify()
   ticker := time.NewTicker(25 * time.Second)
 
   // Push cached value (if it exists) to the connection
-  cachedTime, err1 := redisClient.HGet(client.UserId + client.ClientId, "time").Result()
-  cachedStatus, err2 := redisClient.HGet(client.UserId + client.ClientId, "status").Result()
+  cachedTime, err1 := redisClient.HGet(userId, "time").Result()
+  cachedStatus, err2 := redisClient.HGet(userId, "status").Result()
   if err1 == nil && err2 == nil {
     ping := Ping {
       Time: cachedTime,
@@ -104,7 +102,7 @@ func Subscribe(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
         w.Write([]byte(":\n\n"))
       case <- resClosed:
         ticker.Stop()
-        delete(connections, client)
+        delete(connections, userId)
         return
     }
   }
@@ -141,7 +139,7 @@ func PostTime(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
     Status: ptRequest.Status,
   }
 
-  key := client.UserId + client.ClientId
+  key := client.UserId
   _ = redisClient.HSet(key, "time", []byte(ping.Time))
   _ = redisClient.HSet(key, "status", []byte(ping.Status))
 
@@ -151,7 +149,7 @@ func PostTime(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		return
   }
 
-  for _, connection := range connections[client] {
+  for _, connection := range connections[client.UserId] {
     connection <- pingBytes
   }
 
