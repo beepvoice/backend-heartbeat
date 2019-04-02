@@ -25,7 +25,7 @@ type RawClient struct {
 }
 
 type Ping struct {
-  Time string `json:"time"`
+  Time uint64 `json:"time"`
   Status string `json:"status"`
 }
 
