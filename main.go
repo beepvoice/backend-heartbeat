@@ -25,7 +25,7 @@ type RawClient struct {
 }
 
 type Ping struct {
-  Time uint64 `json:"time"`
+  Time int64 `json:"time"`
   Status string `json:"status"`
 }
 
@@ -94,14 +94,17 @@ func Subscribe(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
   cachedTime, err1 := redisClient.HGet(userId, "time").Result()
   cachedStatus, err2 := redisClient.HGet(userId, "status").Result()
   if err1 == nil && err2 == nil {
-    ping := Ping {
-      Time: cachedTime,
-      Status: cachedStatus,
-    }
-    pingBytes, err := json.Marshal(&ping)
-    if err == nil {
-      fmt.Fprintf(w, "data: %s\n\n", pingBytes)
-      flusher.Flush()
+    uintTime, err3 := strconv.ParseInt(cachedTime, 10, 64)
+    if err3 != nil {
+      ping := Ping {
+        Time: uintTime,
+        Status: cachedStatus,
+      }
+      pingBytes, err := json.Marshal(&ping)
+      if err == nil {
+        fmt.Fprintf(w, "data: %s\n\n", pingBytes)
+        flusher.Flush()
+      }
     }
   }
 
@@ -147,12 +150,12 @@ func PostTime(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
   }
 
   ping := Ping {
-    Time: strconv.FormatInt(time.Now().UTC().Unix(), 10), // UTC Epoch time,
+    Time: time.Now().UTC().Unix(), // UTC Epoch time,
     Status: ptRequest.Status,
   }
 
   key := client.UserId
-  _ = redisClient.HSet(key, "time", []byte(ping.Time))
+  _ = redisClient.HSet(key, "time", []byte(strconv.FormatInt(ping.Time, 10)))
   _ = redisClient.HSet(key, "status", []byte(ping.Status))
 
   pingBytes, err := json.Marshal(&ping)
