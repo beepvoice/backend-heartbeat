@@ -84,6 +84,9 @@ func Subscribe(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 
   recv := make(chan []byte)
   chanId := RandomHex()
+  if connections[userId] == nil {
+    connections[userId] = make(map[string] chan []byte)
+  }
   connections[userId][chanId] = recv
 
   // Refresh connection periodically
