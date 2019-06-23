@@ -79,6 +79,7 @@ func Subscribe(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
   w.Header().Set("Content-Type", "text/event-stream")
   w.Header().Set("Cache-Control", "no-cache")
   w.Header().Set("Connection", "keep-alive")
+  w.WriteHeader(200)
 
   userId := p.ByName("userid")
 
@@ -94,26 +95,29 @@ func Subscribe(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
   ticker := time.NewTicker(25 * time.Second)
 
   // Push cached value (if it exists) to the connection
-  cachedTime, err1 := redisClient.HGet(userId, "time").Result()
-  cachedStatus, err2 := redisClient.HGet(userId, "status").Result()
-  if err1 == nil && err2 == nil {
-    uintTime, err3 := strconv.ParseInt(cachedTime, 10, 64)
-    if err3 != nil {
-      ping := Ping {
-        Time: uintTime,
-        Status: cachedStatus,
-      }
-      pingBytes, err := json.Marshal(&ping)
-      if err == nil {
-        fmt.Fprintf(w, "data: %s\n\n", pingBytes)
-        flusher.Flush()
+  go func(){
+    cachedTime, err1 := redisClient.HGet(userId, "time").Result()
+    cachedStatus, err2 := redisClient.HGet(userId, "status").Result()
+    if err1 == nil && err2 == nil {
+      uintTime, err3 := strconv.ParseInt(cachedTime, 10, 64)
+      if err3 != nil {
+        ping := Ping {
+          Time: uintTime,
+          Status: cachedStatus,
+        }
+        pingBytes, err := json.Marshal(&ping)
+        if err == nil {
+          time.Sleep(1 * time.Second)
+          fmt.Fprintf(w, "data: %s\n\n", pingBytes)
+          flusher.Flush()
+        }
       }
     }
-  }
+  }()
 
   for {
     select {
-      case msg := <- recv:
+      case msg := <-recv:
         fmt.Fprintf(w, "data: %s\n\n", msg)
         flusher.Flush()
       case <- ticker.C:
